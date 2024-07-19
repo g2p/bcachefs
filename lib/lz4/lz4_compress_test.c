@@ -56,22 +56,25 @@ static ssize_t lz4_compress_test_write(struct file *file, const char __user *buf
 	if (!workspace)
 		return -ENOMEM;
 
-	pr_info(DEVICE_NAME ": encoding %zu bytes of input\n", size);
+	pr_info(DEVICE_NAME ": encoding %zu bytes of input, out capacity %zu\n", size, cbuf_capacity);
 
 	// cast to signed: LZ4_compress_destSize will compare against LZ4_MAX_INPUT_SIZE
 	// to ensure this is nonnegative
 	int in_len = size;
 	int cbuf_len = LZ4_compress_destSize(in, cbuf, &in_len, cbuf_capacity, workspace);
 	pr_info(DEVICE_NAME ": compressed %d bytes into %d bytes\n", in_len, cbuf_len);
+	BUG_ON(cbuf_len < 0);
+	BUG_ON(cbuf_len > cbuf_capacity);
 
 	if (cbuf_len) {
 		// Test that what was compressed round-trips correctly
 		// Note: we don't assume in_len == size; in case of
 		// partial compression we check that the compressed bits do round-trip
 
-		BUG_ON(in_len <= 0);
+		// in_len can be zero; there's a case where zero bytes are compressed into one
+		BUG_ON(in_len < 0);
 		BUG_ON((size_t)in_len > size);
-		void *compare = kvmalloc(in_len, GFP_KERNEL);
+		void *compare = kvmalloc(max(in_len, 1), GFP_KERNEL);
 		if (!compare)
 			return -ENOMEM;
 		int ret = LZ4_decompress_safe(cbuf, compare, cbuf_len, in_len);
@@ -79,7 +82,7 @@ static ssize_t lz4_compress_test_write(struct file *file, const char __user *buf
 		BUG_ON(bcmp(in, compare, in_len) != 0);
 	}
 
-	if (cbuf_len)
+	if (cbuf_len && in_len)
 		return in_len;
 	return -EIO;
 }
