@@ -1,0 +1,11 @@
+config LZ4_COMPRESS_TEST
+	tristate "LZ4 compressor tester"
+	default n
+	select LZ4_COMPRESS
+	select LZ4_DECOMPRESS
+	help
+	  This allows passing arbitrary data to the in-kernel LZ4 compressor via
+	  a character special file. It writes diagnostics to the system log.
+
+	  Unless you are developing the LZ4 compressor, you don't need this
+	  and should say N.
